@@ -5,9 +5,10 @@
   interface Props {
     onScan: (barcode: string) => void;
     onError?: (error: string) => void;
+    active?: boolean;
   }
   
-  let { onScan, onError }: Props = $props();
+  let { onScan, onError, active = true }: Props = $props();
   
   let scanner: Html5Qrcode | null = null;
   let isScanning = $state(false);
@@ -15,7 +16,9 @@
   let scannerContainerId = 'qr-reader';
   
   onMount(() => {
-    startScanner();
+    if (active) {
+      startScanner();
+    }
     return () => {
       stopScanner();
     };
@@ -23,6 +26,15 @@
   
   onDestroy(() => {
     stopScanner();
+  });
+  
+  // React to active prop changes
+  $effect(() => {
+    if (active && !isScanning) {
+      startScanner();
+    } else if (!active && isScanning) {
+      stopScanner();
+    }
   });
   
   async function startScanner() {

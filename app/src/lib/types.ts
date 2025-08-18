@@ -18,6 +18,7 @@ export interface Album {
 export interface LastFmSession {
   name: string;
   key: string;
+  image?: string;
 }
 
 export type ViewState = 'scanner' | 'confirm' | 'scrobbling' | 'success';
@@ -48,4 +49,17 @@ export interface MusicBrainzRelease {
       position: number;
     }>;
   }>;
+}
+
+export interface ScrobbleSession {
+  album: Album;
+  scrobbledAt: number;
+  tracks: {
+    name: string;
+    timestamp: number;
+  }[];
+}
+
+export interface ScrobbleHistory {
+  sessions: ScrobbleSession[];
 }

@@ -2,30 +2,46 @@
   import { onMount } from 'svelte';
   import { lastFm } from './lib/services/lastfm';
   import { musicBrainz } from './lib/services/musicbrainz';
-  import type { Album, ViewState } from './lib/types';
+  import { storage } from './lib/services/storage';
+  import type { Album, ViewState, ScrobbleSession } from './lib/types';
   
   import Scanner from './lib/components/Scanner.svelte';
   import AlbumCard from './lib/components/AlbumCard.svelte';
   import ScrobbleProgress from './lib/components/ScrobbleProgress.svelte';
   import AuthButton from './lib/components/AuthButton.svelte';
+  import ScrobbleHistory from './lib/components/ScrobbleHistory.svelte';
   
   // State
   let view: ViewState = $state('scanner');
   let isAuthenticated = $state(false);
+  let username = $state('');
+  let userImage = $state('');
   let currentAlbum: Album | null = $state(null);
   let error = $state('');
   let loading = $state(false);
   let scrobbleProgress = $state(0);
   let currentTrackName = $state('');
   let successMessage = $state('');
+  let isCameraActive = $state(false);
+  let history: ScrobbleSession[] = $state([]);
   
   onMount(() => {
     checkAuth();
     handleAuthCallback();
+    loadHistory();
   });
   
   function checkAuth() {
-    isAuthenticated = lastFm.isAuthenticated();
+    const session = storage.getSession();
+    isAuthenticated = session !== null;
+    if (session) {
+      username = session.name;
+      userImage = session.image || '';
+    }
+  }
+  
+  function loadHistory() {
+    history = storage.getHistory();
   }
   
   async function handleAuthCallback() {
@@ -36,8 +52,10 @@
       loading = true;
       error = '';
       try {
-        await lastFm.getSession(token);
+        const session = await lastFm.getSession(token);
         isAuthenticated = true;
+        username = session.name;
+        userImage = session.image || '';
         // Clean up URL
         window.history.replaceState({}, document.title, window.location.pathname);
       } catch (err) {
@@ -67,6 +85,7 @@
       
       currentAlbum = album;
       view = 'confirm';
+      isCameraActive = false;
     } catch (err) {
       error = err instanceof Error ? err.message : 'Failed to lookup album';
     } finally {
@@ -95,6 +114,9 @@
       // Actually scrobble
       await lastFm.scrobbleAlbum(currentAlbum);
       
+      // Reload history
+      loadHistory();
+      
       successMessage = `Scrobbled ${currentAlbum.tracks.length} tracks from "${currentAlbum.title}"`;
       view = 'success';
     } catch (err) {
@@ -107,6 +129,7 @@
     currentAlbum = null;
     error = '';
     view = 'scanner';
+    isCameraActive = false;
   }
   
   function handleScanAnother() {
@@ -114,6 +137,15 @@
     successMessage = '';
     error = '';
     view = 'scanner';
+    isCameraActive = false;
+  }
+  
+  function openCamera() {
+    isCameraActive = true;
+  }
+  
+  function closeCamera() {
+    isCameraActive = false;
   }
 </script>
 
@@ -135,10 +167,44 @@
 
 {#if view === 'scanner'}
   {#if isAuthenticated}
-    <Scanner 
-      onScan={handleBarcodeScan}
-      onError={(err) => error = err}
-    />
+    <div class="content" style="padding-bottom: 100px;">
+      <!-- Scan Button -->
+      {#if !isCameraActive}
+        <div class="scan-button-container">
+          <button class="btn btn-music btn-large w-full" onclick={openCamera}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 8px;">
+              <path d="M3 7V5a2 2 0 0 1 2-2h2"></path>
+              <path d="M17 3h2a2 2 0 0 1 2 2v2"></path>
+              <path d="M21 17v2a2 2 0 0 1-2 2h-2"></path>
+              <path d="M7 21H5a2 2 0 0 1-2-2v-2"></path>
+              <rect x="7" y="7" width="10" height="10" rx="1"></rect>
+            </svg>
+            Scan Album
+          </button>
+          <p class="scan-button-subtitle">Point camera at barcode to scrobble</p>
+        </div>
+      {/if}
+      
+      <!-- Scanner -->
+      {#if isCameraActive}
+        <div class="scanner-wrapper">
+          <button class="scanner-close-btn" onclick={closeCamera} aria-label="Close camera">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+          </button>
+          <Scanner 
+            onScan={handleBarcodeScan}
+            onError={(err) => error = err}
+            active={isCameraActive}
+          />
+        </div>
+      {/if}
+      
+      <!-- History -->
+      <ScrobbleHistory {history} />
+    </div>
   {:else}
     <div class="content flex flex-col items-center justify-center" style="gap: 24px;">
       <div class="text-center">
@@ -148,7 +214,7 @@
       </div>
       
       <div style="width: 100%; max-width: 300px;">
-        <AuthButton {isAuthenticated} />
+        <AuthButton {isAuthenticated} {username} {userImage} />
       </div>
       
       <div class="card" style="max-width: 300px; margin-top: 24px;">
@@ -224,7 +290,7 @@
   <div style="position: fixed; bottom: calc(20px + var(--safe-bottom)); left: 16px; right: 16px;">
     <div class="card" style="display: flex; align-items: center; justify-content: space-between;">
       <span style="font-size: 14px; color: var(--text-secondary);">Connected to Last.fm</span>
-      <AuthButton {isAuthenticated} />
+      <AuthButton {isAuthenticated} {username} {userImage} />
     </div>
   </div>
 {/if}

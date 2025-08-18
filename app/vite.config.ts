@@ -43,4 +43,7 @@ export default defineConfig({
     })
   ],
   envPrefix: 'VITE_',
+  server: {
+    allowedHosts: ['airfare-bell-handed-twiki.trycloudflare.com']
+  }
 })
