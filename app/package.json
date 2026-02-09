@@ -17,5 +17,9 @@
     "svelte-check": "^4.3.4",
     "typescript": "~5.9.3",
     "vite": "^7.2.4"
+  },
+  "dependencies": {
+    "html5-qrcode": "^2.3.8",
+    "vite-plugin-pwa": "^1.2.0"
   }
 }
